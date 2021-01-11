@@ -1,0 +1,381 @@
+from scipy.interpolate import CubicSpline
+from scipy import optimize
+from pylab import *
+
+
+
+#________________________________________________________________________
+
+#IMPORTING REFRACTIVE INDEX DATA
+
+w1, n1, k1 = loadtxt("Ta2O5.txt", skiprows=1, unpack=True)
+w1 = w1*1e3
+W1 = linspace(min(w1),max(w1),50000)
+N1 = CubicSpline(w1, n1)
+K1 = CubicSpline(w1, k1)
+
+w2, n2, k2 = loadtxt("MgF2vf.txt", skiprows=1, unpack=True)
+w2 = w2*1e3
+W2 = linspace(min(w2),max(w2),50000)
+N2 = CubicSpline(w2, n2)
+K2 = CubicSpline(w2, k2)
+
+w3, n3, k3 = loadtxt("Au.txt", skiprows=1, unpack=True)
+W3 = linspace(min(w3),max(w3),50000)
+N3 = CubicSpline(w3, n3)
+K3 = CubicSpline(w3, k3)
+
+w4, n4, k4 = loadtxt("BK7.txt", skiprows=1, unpack=True)
+#w4 = w4*1e3
+W4 = linspace(min(w4),max(w4),50000)
+N4 = CubicSpline(w4, n4)
+K4 = CubicSpline(w4, k4)
+
+#________________________________________________________________________
+
+
+
+#________________________________________________________________________
+
+#FUNCTION FOR ANTI-REFLECTION COATING
+
+#TM POLARIZATION
+def z0(thetai, lamb, D):
+    Rr = array([1,N1(lamb),N2(lamb)])
+    Ri = array([0,K1(lamb),K2(lamb)])*(0+1j)
+    R=Rr+Ri
+    kzi = (2*pi/lamb)*(R[0])*cos(thetai)
+    thetaj =arcsin(((R[0])*sin(thetai))/(R[1]))
+    kzj = (2*pi/lamb)*(R[1])*cos(thetaj)
+    z=zeros((2,2),complex)
+    for i in range(2):
+        z[i,i]=1
+    for i in range(1):
+        T=zeros((2,2),complex)
+        T[0,0]= (0.5)*(sqrt(kzj/kzi)+sqrt(kzi/kzj))
+        T[0,1]= (0.5)*(sqrt(kzj/kzi)-sqrt(kzi/kzj))
+        T[1,0]=T[0,1]
+        T[1,1]=T[0,0]
+        P=zeros((2,2),complex)
+        P[0,0]=cos(kzj*D[i])+((sin(kzj*D[i]))*(0+1j))
+        P[1,1]=cos(kzj*D[i])-((sin(kzj*D[i]))*(0+1j))
+        x=matmul(P,T)
+        z=matmul(x,z)
+        kzi=kzj
+        thetaj =arcsin(((R[i+1])*sin(thetaj))/(R[i+2]))
+        kzj = (2*pi/lamb)*(R[i+2])*cos(thetaj)
+    Tn=zeros((2,2),complex)
+    Tn[0,0]= (0.5)*(sqrt(kzj/kzi)+sqrt(kzi/kzj))
+    Tn[0,1]= (0.5)*(sqrt(kzj/kzi)-sqrt(kzi/kzj))
+    Tn[1,0]=Tn[0,1]
+    Tn[1,1]=Tn[0,0]
+    z=matmul(Tn,z)
+    r=-z[1,0]/z[1,1]
+    t=z[0,0]+(z[0,1]*r)
+    return abs(r)**2
+
+#TM POLARIZATION
+def z00(thetai, lamb, D):
+    Rr = array([1,N1(lamb),N2(lamb)])
+    Ri = array([0,K1(lamb),K2(lamb)])*(0+1j)
+    R=Rr+Ri
+    kzi = (2*pi/lamb)*(R[0])*cos(thetai)
+    thetaj =arcsin(((R[0])*sin(thetai))/(R[1]))
+    kzj = (2*pi/lamb)*(R[1])*cos(thetaj)
+    z=zeros((2,2),complex)
+    for i in range(2):
+        z[i,i]=1
+    for i in range(1):
+        T=zeros((2,2),complex)
+        T[0,0]= (0.5)*((R[i+1]/R[i])*sqrt(kzi/kzj)+(R[i]/R[i+1])*sqrt(kzj/kzi))
+        T[0,1]= (0.5)*((R[i+1]/R[i])*sqrt(kzi/kzj)-(R[i]/R[i+1])*sqrt(kzj/kzi))
+        T[1,0]=T[0,1]
+        T[1,1]=T[0,0]
+        P=zeros((2,2),complex)
+        P[0,0]=cos(kzj*D[i])+((sin(kzj*D[i]))*(0+1j))
+        P[1,1]=cos(kzj*D[i])-((sin(kzj*D[i]))*(0+1j))
+        x=matmul(P,T)
+        z=matmul(x,z)
+        kzi=kzj
+        thetaj =arcsin(((R[i+1])*sin(thetaj))/(R[i+2]))
+        kzj = (2*pi/lamb)*(R[i+2])*cos(thetaj)
+    Tn=zeros((2,2),complex)
+    Tn[0,0]= (0.5)*((R[N+1]/R[N])*sqrt(kzi/kzj)+(R[N]/R[N+1])*sqrt(kzj/kzi))
+    Tn[0,1]= (0.5)*((R[N+1]/R[N])*sqrt(kzi/kzj)-(R[N]/R[N+1])*sqrt(kzj/kzi))
+    Tn[1,0]=Tn[0,1]
+    Tn[1,1]=Tn[0,0]
+    z=matmul(Tn,z)
+    r=-z[1,0]/z[1,1]
+    t=z[0,0]+(z[0,1]*r)
+    return abs(r)**2
+
+#PRINTED EXAMPLE
+print((z0(pi/4, 663, 200)+z00(pi/4, 663, 200))/2)
+
+#________________________________________________________________________
+
+
+
+#________________________________________________________________________
+
+# N-LAYER STACK: REFLECTION
+
+#TE POLARIZATION
+def z1(lamb, N):
+    Dt = 78.38591805025914.  #OPTIMUM WIDTHS
+    Dm = 116.6641334048497
+    D=zeros((N))
+    for i in arange(0,N,2): 
+        D[i]=Dt
+        D[i+1]=Dm
+    Rr=zeros((N+2))
+    Ri=zeros((N+2))
+    for i in arange(1,N+1,2):
+        Rr[i]=N1(lamb)
+        Rr[i+1]=N2(lamb)
+    for i in arange(1,N+1,2):
+        Ri[i]=K1(lamb)
+        Ri[i+1]=K2(lamb)
+    Rr[0]=1
+    Rr[N+1]=N3(lamb)
+    Ri[0]=0
+    Ri[N+1]=K3(lamb)
+    R=Rr+(Ri*(0+1j))#define array of refractive indices
+    #print(R)
+    kzi = (2*pi/lamb)*(R[0])*cos(thetai)
+    thetaj =arcsin(((R[0])*sin(thetai))/(R[1]))
+    kzj = (2*pi/lamb)*(R[1])*cos(thetaj)
+    #print(kzj)
+    r1=(R[0]-R[1])/(R[0]+R[1])
+    #print(abs(r1)**2)
+    z=zeros((2,2),complex)
+    for i in range(2):
+        z[i,i]=1
+    for i in range(N):#loop over P·T multiplications
+        T=zeros((2,2),complex)
+        T[0,0]= (0.5)*(sqrt(kzj/kzi)+sqrt(kzi/kzj))
+        T[0,1]= (0.5)*(sqrt(kzj/kzi)-sqrt(kzi/kzj))
+        T[1,0]=T[0,1]
+        T[1,1]=T[0,0]
+        P=zeros((2,2),complex)
+        P[0,0]=cos(kzj*D[i])+((sin(kzj*D[i]))*(0+1j))
+        P[1,1]=cos(kzj*D[i])-((sin(kzj*D[i]))*(0+1j))
+        x=matmul(P,T)
+        z=matmul(x,z)
+        #print(z)
+        kzi=kzj
+        thetaj =arcsin(((R[i+1])*sin(thetaj))/(R[i+2]))
+        kzj = (2*pi/lamb)*(R[i+2])*cos(thetaj)
+        #print(thetaj)
+    Tn=zeros((2,2),complex)#multiply by the above product by T_n+1,n
+    Tn[0,0]= (0.5)*(sqrt(kzj/kzi)+sqrt(kzi/kzj))
+    Tn[0,1]= (0.5)*(sqrt(kzj/kzi)-sqrt(kzi/kzj))
+    Tn[1,0]=Tn[0,1]
+    Tn[1,1]=Tn[0,0]
+    z=matmul(Tn,z)
+    r=-z[1,0]/z[1,1]
+    t=z[0,0]+(z[0,1]*r)
+    return abs(r)**2
+
+#TM POLARIZATION
+def z2(lamb, N):
+    Dt = 78.38591805025914
+    Dm = 116.6641334048497
+    D=zeros((N))
+    for i in arange(0,N,2):
+        D[i]=Dt
+        D[i+1]=Dm
+    #print(D)
+    Rr=zeros((N+2))
+    Ri=zeros((N+2))
+    for i in arange(1,N+1,2):
+        Rr[i]=N1(lamb)
+        Rr[i+1]=N2(lamb)
+    for i in arange(1,N+1,2):
+        Ri[i]=K1(lamb)
+        Ri[i+1]=K2(lamb)
+    Rr[0]=1
+    Rr[N+1]=N3(lamb)
+    Ri[0]=0
+    Ri[N+1]=K3(lamb)
+    R=Rr+(Ri*(0+1j))
+    #print(R)
+    kzi = (2*pi/lamb)*(R[0])*cos(thetai)
+    thetaj =arcsin(((R[0])*sin(thetai))/(R[1]))
+    kzj = (2*pi/lamb)*(R[1])*cos(thetaj)
+    #print(kzj)
+    z=zeros((2,2),complex)
+    for i in range(2):
+        z[i,i]=1
+    for i in range(N):
+        T=zeros((2,2),complex)
+        T[0,0]= (0.5)*((R[i+1]/R[i])*sqrt(kzi/kzj)+(R[i]/R[i+1])*sqrt(kzj/kzi))
+        T[0,1]= (0.5)*((R[i+1]/R[i])*sqrt(kzi/kzj)-(R[i]/R[i+1])*sqrt(kzj/kzi))
+        T[1,0]=T[0,1]
+        T[1,1]=T[0,0]
+        P=zeros((2,2),complex)
+        P[0,0]=cos(kzj*D[i])+((sin(kzj*D[i]))*(0+1j))
+        P[1,1]=cos(kzj*D[i])-((sin(kzj*D[i]))*(0+1j))
+        x=matmul(P,T)
+        z=matmul(x,z)
+        #print(z)
+        kzi=kzj
+        thetaj =arcsin(((R[i+1])*sin(thetaj))/(R[i+2]))
+        kzj = (2*pi/lamb)*(R[i+2])*cos(thetaj)
+        #print(thetaj)
+    Tn=zeros((2,2),complex)
+    Tn[0,0]= (0.5)*((R[N+1]/R[N])*sqrt(kzi/kzj)+(R[N]/R[N+1])*sqrt(kzj/kzi))
+    Tn[0,1]= (0.5)*((R[N+1]/R[N])*sqrt(kzi/kzj)-(R[N]/R[N+1])*sqrt(kzj/kzi))
+    Tn[1,0]=Tn[0,1]
+    Tn[1,1]=Tn[0,0]
+    z=matmul(Tn,z)
+    r=-z[1,0]/z[1,1]
+    t=z[0,0]+(z[0,1]*r)
+    return abs(r)**2
+
+#PRINTS TOTAL REFLECTION FOR A GIVEN EXAMPLE
+print((z1(663,30)+z2(663,30))/2)
+
+#________________________________________________________________________
+
+
+
+#________________________________________________________________________
+
+# N-LAYER STACK WITH INTERMEDIATE LAYER OF VARIABLE WIDTH: REFLECTION
+
+#TE POLARIZATION
+def z3(lamb, N, d):
+    Dt = 78.38591805025914
+    Dm = 116.6641334048497
+    D=zeros((N))
+    o = int((N-1)/2)
+    for i in arange(0,o,2):
+        D[i]=Dt
+        D[i+1]=Dm
+    D[o]=d
+    for i in arange(o+1,N,2):
+        D[i]=Dt
+        D[i+1]=Dm
+    Rr=zeros((N+2))
+    Ri=zeros((N+2))
+    oo = int((N+1)/2)
+    for i in arange(1,oo,2):
+        Rr[i]=N1(lamb)
+        Rr[i+1]=N2(lamb)
+    for i in arange(1,oo,2):
+        Ri[i]=K1(lamb)
+        Ri[i+1]=K2(lamb)
+    Rr[oo]=N4(lamb)
+    Ri[oo]=K4(lamb)
+    for i in arange(oo+1,N+1,2):
+        Rr[i]=N1(lamb)
+        Rr[i+1]=N2(lamb)
+    for i in arange(oo+1,N+1,2):
+        Ri[i]=K1(lamb)
+        Ri[i+1]=K2(lamb)
+    Rr[0]=1
+    Rr[N+1]=N3(lamb)
+    Ri[0]=0
+    Ri[N+1]=K3(lamb)
+    R=Rr+(Ri*(0+1j))#define array of refractive indices
+    kzi = (2*pi/lamb)*(R[0])*cos(thetai)
+    thetaj =arcsin(((R[0])*sin(thetai))/(R[1]))
+    kzj = (2*pi/lamb)*(R[1])*cos(thetaj)
+    r1=(R[0]-R[1])/(R[0]+R[1])
+    z=zeros((2,2),complex)
+    for i in range(2):
+        z[i,i]=1
+    for i in range(N):#loop over P·T multiplications
+        T=zeros((2,2),complex)
+        T[0,0]= (0.5)*(sqrt(kzj/kzi)+sqrt(kzi/kzj))
+        T[0,1]= (0.5)*(sqrt(kzj/kzi)-sqrt(kzi/kzj))
+        T[1,0]=T[0,1]
+        T[1,1]=T[0,0]
+        P=zeros((2,2),complex)
+        P[0,0]=cos(kzj*D[i])+((sin(kzj*D[i]))*(0+1j))
+        P[1,1]=cos(kzj*D[i])-((sin(kzj*D[i]))*(0+1j))
+        x=matmul(P,T)
+        z=matmul(x,z)
+        kzi=kzj
+        thetaj =arcsin(((R[i+1])*sin(thetaj))/(R[i+2]))
+        kzj = (2*pi/lamb)*(R[i+2])*cos(thetaj)
+    Tn=zeros((2,2),complex)#multiply by the above product by T_n+1,n
+    Tn[0,0]= (0.5)*(sqrt(kzj/kzi)+sqrt(kzi/kzj))
+    Tn[0,1]= (0.5)*(sqrt(kzj/kzi)-sqrt(kzi/kzj))
+    Tn[1,0]=Tn[0,1]
+    Tn[1,1]=Tn[0,0]
+    z=matmul(Tn,z)
+    r=-z[1,0]/z[1,1]
+    t=z[0,0]+(z[0,1]*r)
+    return abs(r)**2
+
+#TM POLARIZATION
+def z4(lamb, N, d):
+    Dt = 78.38591805025914
+    Dm = 116.6641334048497
+    D=zeros((N))
+    o = int((N-1)/2)
+    for i in arange(0,o,2):
+        D[i]=Dt
+        D[i+1]=Dm
+    D[o]=d
+    for i in arange(o+1,N,2):
+        D[i]=Dt
+        D[i+1]=Dm
+    Rr=zeros((N+2))
+    Ri=zeros((N+2))
+    oo = int((N+1)/2)
+    for i in arange(1,oo,2):
+        Rr[i]=N1(lamb)
+        Rr[i+1]=N2(lamb)
+    for i in arange(1,oo,2):
+        Ri[i]=K1(lamb)
+        Ri[i+1]=K2(lamb)
+    Rr[oo]=N4(lamb)
+    Ri[oo]=K4(lamb)
+    for i in arange(oo+1,N+1,2):
+        Rr[i]=N1(lamb)
+        Rr[i+1]=N2(lamb)
+    for i in arange(oo+1,N+1,2):
+        Ri[i]=K1(lamb)
+        Ri[i+1]=K2(lamb)
+    Rr[0]=1
+    Rr[N+1]=N3(lamb)
+    Ri[0]=0
+    Ri[N+1]=K3(lamb)
+    R=Rr+(Ri*(0+1j))#define array of refractive indices
+    kzi = (2*pi/lamb)*(R[0])*cos(thetai)
+    thetaj =arcsin(((R[0])*sin(thetai))/(R[1]))
+    kzj = (2*pi/lamb)*(R[1])*cos(thetaj)
+    r1=(R[0]-R[1])/(R[0]+R[1])
+    z=zeros((2,2),complex)
+    for i in range(2):
+        z[i,i]=1
+    for i in range(N):#loop over P·T multiplications
+        T=zeros((2,2),complex)
+        T[0,0]= (0.5)*(sqrt(kzj/kzi)+sqrt(kzi/kzj))
+        T[0,1]= (0.5)*(sqrt(kzj/kzi)-sqrt(kzi/kzj))
+        T[1,0]=T[0,1]
+        T[1,1]=T[0,0]
+        P=zeros((2,2),complex)
+        P[0,0]=cos(kzj*D[i])+((sin(kzj*D[i]))*(0+1j))
+        P[1,1]=cos(kzj*D[i])-((sin(kzj*D[i]))*(0+1j))
+        x=matmul(P,T)
+        z=matmul(x,z)
+        kzi=kzj
+        thetaj =arcsin(((R[i+1])*sin(thetaj))/(R[i+2]))
+        kzj = (2*pi/lamb)*(R[i+2])*cos(thetaj)
+    Tn=zeros((2,2),complex)#multiply by the above product by T_n+1,n
+    Tn[0,0]= (0.5)*((R[N+1]/R[N])*sqrt(kzi/kzj)+(R[N]/R[N+1])*sqrt(kzj/kzi))
+    Tn[0,1]= (0.5)*((R[N+1]/R[N])*sqrt(kzi/kzj)-(R[N]/R[N+1])*sqrt(kzj/kzi))
+    Tn[1,0]=Tn[0,1]
+    Tn[1,1]=Tn[0,0]
+    z=matmul(Tn,z)
+    r=-z[1,0]/z[1,1]
+    t=z[0,0]+(z[0,1]*r)
+    return abs(r)**2
+
+#PRINTS TOTAL REFLECTION FOR A GIVEN EXAMPLE
+print((z3(663,30,50)+z4(663,30,50))/2)
+
